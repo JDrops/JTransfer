@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JTransfer by JDrops</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            text-align: center;
+            background-color: #fff;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            width: 300px;
+        }
+        h1 {
+            margin-bottom: 30px;
+            font-size: 32px;
+            color: #333;
+        }
+        #uploadForm {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #fileInput {
+            margin-bottom: 20px;
+        }
+        input[type="submit"] {
+            padding: 10px 20px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        input[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+        #progressBarContainer {
+            width: 100%;
+            /* background-color: #e0e0e0; */
+            border-radius: 5px;
+            margin-top: 20px;
+            display: none;
+            position: relative;
+        }
+        #progressBar {
+            height: 20px;
+            width: 0;
+            background-color: #007BFF;
+            border-radius: 5px;
+        }
+        #progressPercent {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            line-height: 20px;
+            font-size: 14px;
+            color: #fff;
+        }
+        #message {
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        /* Modal Styles */
+        .modal {
+            display: none; 
+            position: fixed; 
+            z-index: 1; 
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5); 
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            width: 300px;
+            position: relative;
+        }
+        #closeModal {
+            cursor: pointer;
+            color: red;
+            font-size: 24px;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+        #qrCode {
+            margin-top: 20px;
+            margin-left: 50px;
+        }
+
+        .footer {
+            position: fixed; /* Fix to the bottom of the viewport */
+            bottom: 0; /* Align to the bottom */
+            left: 0; /* Align to the left */
+            width: 100%; /* Full width */
+            /* background-color: #333; */
+            color: #aaa; /* Text color */
+            text-align: center; /* Center the text */
+            padding: 10px 0; /* Padding for spacing */
+            font-size: 12px;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>JTransfer</h1>
+        <form id="uploadForm">
+            <input type="file" id="fileInput" name="file" required>
+            <input type="submit" id="uploadBtn" value="Upload">
+        </form>
+
+        <!-- Progress Bar -->
+        <div id="progressBarContainer">
+            <div id="progressBar"></div>
+            <div id="progressBar">Uploading...</div>
+            <div id="progressPercent">0%</div>
+        </div>
+
+        <div id="message"></div>
+    </div>
+
+    <!-- Modal for Upload Result -->
+    <div id="resultModal" class="modal">
+        <div class="modal-content">
+            <span id="closeModal">&times;</span>
+            <h2>Upload Successful!</h2>
+            <p id="fileLink"></p>
+            <div id="qrCode" style="margin:0 auto"></div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>&copy; 2024 - JDrops Made it.</p>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            var fileInput = document.getElementById('fileInput');
+            var file = fileInput.files[0];
+            var uploadBtn = document.getElementById('uploadBtn');
+            var uploadForm = document.getElementById('uploadForm');
+
+            // 2GB in bytes (2 * 1024 * 1024 * 1024)
+            var maxSize = 2 * 1024 * 1024 * 1024;
+
+            if(file.size > maxSize) {
+                document.getElementById('message').innerHTML = "File size exceeds 2GB. Please upload a smaller file.";
+                return;
+            }
+
+            var formData = new FormData();
+            formData.append('file', file);
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', 'https://file.io/', true);
+
+            // Hide the upload button and show the progress bar
+            var progressBarContainer = document.getElementById('progressBarContainer');
+            var progressBar = document.getElementById('progressBar');
+            var progressPercent = document.getElementById('progressPercent');
+            progressBarContainer.style.display = 'block';
+            uploadForm.style.display = 'none';
+
+            // Track upload progress
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    var percentComplete = Math.round((e.loaded / e.total) * 100);
+                    progressBar.style.width = percentComplete + '%';
+                    progressPercent.textContent = percentComplete + '%';
+                }
+            };
+
+            // Handle successful upload
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    var response = JSON.parse(xhr.responseText);
+                    var fileLink = response.link;
+
+                    // Hide the progress bar once the upload is complete
+                    progressBarContainer.style.display = 'none';
+                    progressBar.style.width = '0%';
+                    progressPercent.textContent = '0%';
+
+                    // Show modal with file link and QR code
+                    var modal = document.getElementById('resultModal');
+                    modal.style.display = 'flex';
+                    document.getElementById('fileLink').innerHTML = "Download URL: <a href='" + fileLink + "' target='_blank'>" + fileLink + "</a>";
+
+                    // Generate QR Code
+                    var qrCodeDiv = document.getElementById('qrCode');
+                    qrCodeDiv.innerHTML = ''; // Clear any existing QR code
+                    new QRCode(qrCodeDiv, {
+                        text: fileLink,
+                        width: 128,
+                        height: 128
+                    });
+                } else {
+                    document.getElementById('message').innerHTML = "File upload failed. Please try again.";
+                }
+            };
+
+            xhr.onerror = function () {
+                document.getElementById('message').innerHTML = "An error occurred during the file upload.";
+                progressBarContainer.style.display = 'none';
+                progressBar.style.width = '0%';
+                progressPercent.textContent = '0%';
+            };
+
+            xhr.send(formData);
+        });
+
+        // Close modal and show upload button again
+        document.getElementById('closeModal').onclick = function() {
+            document.getElementById('resultModal').style.display = 'none';
+            document.getElementById('uploadForm').style.display = 'block'; // Show upload button again
+        };
+    </script>
+</body>
+</html>
